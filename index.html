@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>存档分享</title>
+
+  <style>
+    html,
+    body {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+    }
+
+    #jsoneditor {
+      height: 100%;
+    }
+
+    .x button {
+      padding: 5px;
+      font-size: large;
+    }
+
+    #s {
+      font-size: xx-large;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="jsoneditor" style="--jse-font-size-mono: 20px;width: 100%;overflow-x: scroll;"></div>
+  <div class="x">
+    <button onclick="de(0)">查看</button><br>
+    <button onclick="de(1)">解包</button><br>
+    <button onclick="de(2)">打包</button><br>
+    <button onclick="de(3)">写入</button><br>
+    <button onclick="file.click()">上传</button><br>
+    <input type="file" multiple id="file" hidden>
+    <button onclick="de(4)">下载</button><br>
+    <button onclick="de(5)">导出</button><br>
+    <button onclick="de(6)">复制</button><br>
+    <button onclick="de(7)">分享</button><br>
+    <button onclick="de(8)">解码</button><br>
+    <div id="s" hidden>
+    </div>
+  </div>
+  <script src="uzip.js"></script>
+  <script src="index.js"></script>
+  <script src="swal.js"></script>
+  <script src="lz-string.js"></script>
+  <script src="base32768.js"></script>
+  <script src="encrypt.js"></script>
+  <script src="localforage.min.js"></script>
+  <script src="pako.min.js"></script>
+  <script>
+    var isMobile = navigator.userAgent.indexOf("Mobile") != -1;
+    if (!isMobile) {
+      s.hidden = "";
+      jsoneditor.style.width = "70%"
+    }
+    var func = [ck, jb, db, xr, xz, dc, fz, fx, jm];
+    var fd = 0;
+    function showErr(e){
+      e = e.reason || e.message
+      if (isMobile) {
+          swal("", e, "error");
+      } else {
+          s.innerText =  e
+      }
+    }
+    onerror = onunhandledrejection = showErr
+    var encoder = new TextEncoder();
+    var decoder = new TextDecoder();
+    async function de(n) {
+      if (fd) return;
+      fd = 1;
+      try{
+        await func[n]()
+      }catch(e){
+        showErr(e)
+      }
+      await new Promise((res) => setTimeout(res, 100));
+      fd = 0;
+    }
+    function read(file,buf){
+      return new Promise((res)=>{
+        var reader = new FileReader();
+        reader.onload = (e)=>res(e.target.result)
+        buf ? reader.readAsArrayBuffer(file) : reader.readAsText(file);
+      })
+    }
+    function getValue() {
+      var text1 = editor.get();
+      return text1.json || JSON.parse(text1.text);
+    }
+    function getText() {
+      var text2 = editor.get();
+      var t = text2.json || text2.text;
+      return isStr(t) ? t : JSON.stringify(t);
+    }
+    function isStr(str) {
+      return typeof str == "string"
+    }
+    ls = localStorage;
+    editor = new JSONEditor({
+      target: jsoneditor,
+      props: {
+        content: { text: JSON.stringify("RPG 存档查看器\n查看：查看当前浏览器存档\n解包：解包RPG存档数据\n打包：重新RPG存档数据封包（只需要一次）\n写入：写入当前浏览器存档\n上传：上传存档\n下载：下载dat文件\n导出：导出存档\n复制：复制到剪贴板上\n分享：生成可分享格式\n解码：对可分享格式解码") }
+      }
+    })
+    function showMessage(str) {
+      if (isMobile) {
+        swal(str);
+      } else {
+        s.innerText = str;
+      }
+    }
+    function setObj(a) {
+      editor.set({ text: JSON.stringify(a) })
+    }
+    async function ck() {
+      let obj = {};
+      await localforage.iterate(function (v,k) {
+        if(k.startsWith("rmmz")){
+          obj[k] = v;
+        }
+      })
+      setObj(Object.assign(obj,ls))
+      showMessage("查看成功");
+    }
+    async function jb() {
+      var g = getValue()
+      var ls = {}
+      for (var i in g) {
+        if (i.startsWith("RPG ")) {
+          var k = g[i]
+          ls[i] = JSON.parse(LZString.decompressFromBase64(k));
+        }
+        if (i.startsWith("rmmz")) {
+          try{
+              let k = g[i]
+              ls[i] = isStr(k) ? JSON.parse(pako.inflate(k,{to:"string"})) : k ;
+          }catch(e){}
+        }
+      }
+      setObj(ls)
+      showMessage("解包成功");
+    }
+    async function db() {
+      var g = getValue();
+      var ls = {}
+      for (var i in g) {
+        if (i.startsWith("RPG ")) {
+          var k = g[i]
+          ls[i] = isStr(k) ? k : LZString.compressToBase64(JSON.stringify(k));
+        }
+        if (i.startsWith("rmmz")) {
+          try{
+              let k = g[i]
+              ls[i] = isStr(k) ? k : pako.deflate(JSON.stringify(k),{to:"string"});
+          }catch(e){}
+        }
+
+      }
+      setObj(ls)
+      showMessage("打包成功");
+    }
+    async function xr() {
+      var g = getValue();
+      let g1 = {}
+      for (var i in g) {
+        if (i.startsWith("RPG ")) {
+          g1[i] = isStr(g[i]) ? g[i] : LZString.compressToBase64(JSON.stringify(g[i]));
+        }
+        try{
+          if (i.startsWith("rmmz")) {
+            await localforage.setItem(i,isStr(g[i]) ? g[i] : pako.deflate(JSON.stringify(g[i]),{to:'string'}))
+          }
+        }catch(e){}
+      }
+      Object.assign(ls, g1);
+      showMessage("写入成功");
+    }
+    file.oninput = async function () {
+      let k = 0;
+      f = file.files;
+      if (!f.length) return;
+      var ls = {};
+      if (f[0].name.endsWith('.dat')) {
+        editor.set({ text: await read(f[0])})
+        showMessage("上传成功");
+        file.value = '';
+        return;
+      }
+      if (f[0].name.endsWith('.zip')) {
+          var ls = UZIP.parse(await read(f[0],true));
+          var obj = {}
+          for (n in ls) {
+            if (n == "common.rpgsave") {
+              obj["RPG Common"] = decoder.decode(ls[n]);
+            } else if (n == "global.rpgsave") {
+              obj["RPG Global"] = decoder.decode(ls[n])
+            } else if (n == "config.rpgsave") {
+              obj["RPG Config"] = decoder.decode(ls[n])
+            } else if (/^file\d{1,2}\.rpgsave$/.test(n)) {
+              obj["RPG File".concat(n.match(/\d{1,2}/)[0])] = decoder.decode(ls[n]);
+            }
+            if(n.endsWith("rmmzsave")){
+              k = 1;
+              let w = n.split(".")
+              let str = w[w.length-1] + ".10000000." + w[0]
+              obj[str] = decoder.decode(ls[n])
+            }
+
+          }
+          setObj(obj);
+          if(k ==0){
+            showMessage("上传成功");
+          }else{
+            showMessage("上传成功,需要修改游戏编号");
+          }
+        file.value = '';
+        return;
+      }
+      for (var i = 0; i < f.length; i++) {
+        var n = f[i].name;
+        if (n == "common.rpgsave") {
+          ls["RPG Common"] = await read(f[i]);
+        } else if (n == "config.rpgsave") {
+          ls["RPG Config"] = await read(f[i]);
+        } else if (n == "global.rpgsave") {
+          ls["RPG Global"] = await read(f[i]);
+        } else if (/^file\d{1,2}\.rpgsave$/.test(n)) {
+          ls["RPG File".concat(n.match(/\d{1,2}/)[0])] = await read(f[i]);
+        }
+        if(n.endsWith("rmmzsave")){
+              k = 1;
+              let w = n.split(".")
+              let str = w[w.length-1] + ".10000000." + w[0]
+              ls[str] = await read(f[i]);
+        }
+      }
+      setObj(ls)
+      if(k ==0){
+            showMessage("上传成功");
+      }else{
+            showMessage("上传成功,需要修改游戏编号");
+      }
+    }
+    async function xz() {
+      var a = document.createElement('a');
+      var blob = new Blob([getText()]);
+      var url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = "export.dat";
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+    async function fz() {
+      var t = document.createElement('textarea');
+      t.value = getText();
+      document.body.appendChild(t);
+      t.select();
+      document.execCommand('Copy') && showMessage("已经复制到粘贴板上面了");
+      document.body.removeChild(t);
+    }
+    async function encodeStr(str) {
+      return encode((await enc()).e(encoder.encode(str)));
+    }
+    async function decodeStr(str) {
+      return decoder.decode((await enc()).d(decode(str)));
+    }
+    async function fx() {
+      var e = await encodeStr(getText())
+      editor.set({ text: '"' + e + '"' })
+      showMessage(e.length + "字");
+    }
+    async function jm() {
+      var e = await decodeStr(getText().replace(/"/g, ""))
+      editor.set({ text: e })
+      showMessage(e.length + "字");
+    }
+    async function dc() {
+      var f = getValue()
+      var ls = {}
+      for (var n in f) {
+        var e = f[n];
+        if (n == "RPG Config") {
+          e = isStr(e) ? e : LZString.compressToBase64(JSON.stringify(e));
+          ls["config.rpgsave"] = encoder.encode(e);
+        } else if (n == "RPG Common") {
+          e = isStr(e) ? e : LZString.compressToBase64(JSON.stringify(e));
+          ls["common.rpgsave"] = encoder.encode(e);
+        } else if (n == "RPG Global") {
+          e = isStr(e) ? e : LZString.compressToBase64(JSON.stringify(e));
+          ls["global.rpgsave"] = encoder.encode(e);
+        } else if (/^RPG File\d{1,2}$/.test(n)) {
+          e = isStr(e) ? e : LZString.compressToBase64(JSON.stringify(e));
+          ls["file".concat(n.match(/\d{1,2}/)[0], ".rpgsave")] = encoder.encode(e);
+        }
+        if(n.startsWith("rmmzsave")){
+              let w = n.split(".")
+              let str = w[w.length-1] + "." + w[0];
+              e = isStr(e) ? e : pako.deflate(JSON.stringify(e),{to:'string'});
+              ls[str] = encoder.encode(e);
+        }
+      }
+      var a = document.createElement('a');
+      var blob = new Blob([UZIP.encode(ls)]);
+      var url = URL.createObjectURL(blob);
+      a.href = url;
+      a.download = "export.zip";
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showMessage("导出成功");
+    }
+  </script>
+</body>
+
+</html>
