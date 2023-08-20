@@ -14,3 +14,7 @@
 [https://github.com/josdejong/svelte-jsoneditor](https://github.com/josdejong/svelte-jsoneditor)
 ### Cheerp 3.0
 [https://leaningtech.com/cheerp/](https://leaningtech.com/cheerp/)
+### pako
+[https://github.com/nodeca/pako](https://github.com/nodeca/pako)
+### localforage
+[https://github.com/localForage/localForage](https://github.com/localForage/localForage)
